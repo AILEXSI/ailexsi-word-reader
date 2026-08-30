@@ -10,6 +10,7 @@ interface Props {
   voiceId: string | null
   progress: number
   speechSupported: boolean
+  engineLabel?: string
   onPlay: () => void
   onPause: () => void
   onStop: () => void
@@ -31,6 +32,7 @@ export function PlaybackBar({
   voiceId,
   progress,
   speechSupported,
+  engineLabel,
   onPlay,
   onPause,
   onStop,
@@ -125,6 +127,8 @@ export function PlaybackBar({
               )}
             </select>
           </label>
+
+          {engineLabel ? <span className="engine-label">{engineLabel}</span> : null}
 
           <label className="pref volume">
             <span>Laut</span>

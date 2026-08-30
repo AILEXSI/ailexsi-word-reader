@@ -1,0 +1,6 @@
+# Install torch + CUDA *first* on the 4090 machine, then this file:
+#   pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+#   pip install -r tts/requirements.txt
+#
+# Do not install these in CI. Tests mock the HTTP provider and never load Chatterbox.
+chatterbox-tts

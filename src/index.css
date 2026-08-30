@@ -406,6 +406,12 @@ button:disabled {
   min-width: 8rem;
 }
 
+.engine-label {
+  color: var(--ink-faint);
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+}
+
 .banner {
   display: flex;
   justify-content: space-between;

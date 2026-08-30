@@ -8,8 +8,9 @@ import { ResumeDialog } from './components/ResumeDialog'
 import { chapterIndexAt } from './docx/structure'
 import { importManuscript, loadLongSampleManuscript, loadSampleManuscript, pickDocxFile } from './file/openManuscript'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { createHttpAudioProvider, probeHttpTts } from './narration/HttpAudioProvider'
 import { createNarrationEngine, type NarrationEngine } from './narration/NarrationEngine'
-import type { EngineSnapshot, NarrationError, VoiceInfo } from './narration/types'
+import type { EngineSnapshot, NarrationError, NarrationProvider, VoiceInfo } from './narration/types'
 import { createWebSpeechProvider, isSpeechSupported } from './narration/WebSpeechProvider'
 import { pickDefaultVoice, sortVoices } from './narration/voices'
 import { loadLastSession, loadPosition, savePosition } from './persistence/db'
@@ -42,37 +43,54 @@ export default function App() {
   const [resumeOpen, setResumeOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [booting, setBooting] = useState(true)
+  const [speechOk, setSpeechOk] = useState(() => isSpeechSupported())
+  const [engineLabel, setEngineLabel] = useState('Systemstimme')
 
   const engineRef = useRef<NarrationEngine | null>(null)
   const manuscriptRef = useRef<Manuscript | null>(null)
-  const speechOk = isSpeechSupported()
 
   useEffect(() => {
     manuscriptRef.current = manuscript
   }, [manuscript])
 
   useEffect(() => {
-    const provider = createWebSpeechProvider()
-    const engine = createNarrationEngine(provider, {
-      onSnapshot: setSnapshot,
-      onPosition: (next) => {
-        setPosition(next)
-        void savePosition(next)
-      },
-      onError: (err) => setSpeechError(err),
-      onEnded: () => setSpeechError(null),
-    })
-    engineRef.current = engine
-    engine.setOptions({
-      voiceId: prefs.voiceURI,
-      rate: prefs.rate,
-      volume: prefs.volume,
-      lang: 'de-DE',
-    })
+    let cancelled = false
+    const held: { engine: NarrationEngine | null } = { engine: null }
 
     void (async () => {
+      const neural = createHttpAudioProvider()
+      const healthy = await probeHttpTts()
+      if (cancelled) return
+
+      const provider: NarrationProvider = healthy ? neural : createWebSpeechProvider()
+      setEngineLabel(provider.label)
+      setSpeechOk(healthy || isSpeechSupported())
+
+      const engine = createNarrationEngine(provider, {
+        onSnapshot: setSnapshot,
+        onPosition: (next) => {
+          setPosition(next)
+          void savePosition(next)
+        },
+        onError: (err) => setSpeechError(err),
+        onEnded: () => setSpeechError(null),
+      })
+      if (cancelled) {
+        engine.destroy()
+        return
+      }
+      held.engine = engine
+      engineRef.current = engine
+      engine.setOptions({
+        voiceId: prefs.voiceURI,
+        rate: prefs.rate,
+        volume: prefs.volume,
+        lang: 'de-DE',
+      })
+
       try {
         const list = sortVoices(await provider.listVoices())
+        if (cancelled) return
         setVoices(list)
         const chosen = pickDefaultVoice(list, prefs.voiceURI)
         if (chosen && chosen.id !== prefs.voiceURI) {
@@ -87,6 +105,7 @@ export default function App() {
 
       try {
         const session = await loadLastSession()
+        if (cancelled) return
         if (session.manuscript) {
           setManuscript(session.manuscript)
           setPosition(session.position)
@@ -96,12 +115,13 @@ export default function App() {
       } catch {
         /* first launch */
       } finally {
-        setBooting(false)
+        if (!cancelled) setBooting(false)
       }
     })()
 
     return () => {
-      engine.destroy()
+      cancelled = true
+      held.engine?.destroy()
       engineRef.current = null
     }
     // Boot once — prefs are applied inside.
@@ -360,6 +380,7 @@ export default function App() {
           onSkipForward={() => engineRef.current?.skipForward(30)}
           onRate={(rate) => applyPrefs({ ...prefs, rate })}
           onVolume={(volume) => applyPrefs({ ...prefs, volume })}
+          engineLabel={engineLabel}
           onVoice={(voiceURI) => applyPrefs({ ...prefs, voiceURI })}
           onSeek={(ratio) => {
             const index = Math.round(ratio * Math.max(0, manuscript.blocks.length - 1))
