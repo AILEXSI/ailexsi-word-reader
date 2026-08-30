@@ -23,7 +23,7 @@ npm run generate:sample
 
 No cloud API keys. On boot the app probes a local neural TTS helper (`127.0.0.1:8765`, Chatterbox Multilingual V3). If that server is down, narration falls back to the browser **Web Speech API** (`speechSynthesis`). German **de-DE** first.
 
-See [tts/README.md](tts/README.md) for the optional Python server on a local RTX GPU.
+See [tts/README.md](tts/README.md) for the optional Python server on a local RTX GPU. Install Chatterbox from **git HEAD** (`t3_model="v3"`). PyPI `chatterbox-tts==0.1.7` is multilingual V2 only.
 
 ## How to use
 

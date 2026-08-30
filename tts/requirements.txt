@@ -1,6 +1,13 @@
-# Install torch + CUDA *first* on the 4090 machine, then this file:
-#   pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
-#   pip install -r tts/requirements.txt
+# Do not install this file in CI. Tests mock the HTTP provider and never load Chatterbox.
 #
-# Do not install these in CI. Tests mock the HTTP provider and never load Chatterbox.
-chatterbox-tts
+# PyPI chatterbox-tts==0.1.7 is STALE: from_pretrained(device=...) only, loads
+# multilingual V2 (t3_mtl23ls_v2.safetensors), no t3_model argument.
+#
+# Verified on RTX 4090 (torch 2.6.0+cu124), venv:
+#   C:\Users\marti\ailexsi-word-reader\tts\.venv
+#
+#   pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+#   pip install --no-deps git+https://github.com/resemble-ai/chatterbox.git
+#
+# --no-deps is required so pip does not replace CUDA torch with CPU wheels.
+# Then ChatterboxMultilingualTTS.from_pretrained(device="cuda", t3_model="v3") works.

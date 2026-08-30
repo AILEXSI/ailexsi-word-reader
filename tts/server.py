@@ -6,17 +6,23 @@ Binds 127.0.0.1:8765 only. Never expose this on 0.0.0.0.
 
 from __future__ import annotations
 
+import inspect
 import io
 import json
 import sys
 import threading
 import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import urlparse
 
 HOST = "127.0.0.1"
 PORT = 8765
 BACKEND = "chatterbox-multilingual-v3"
+TTS_DIR = Path(__file__).resolve().parent
+# German Thorsten clip (~9.5s). An English prompt would stamp an English accent.
+REF_DE = TTS_DIR / "ref_de_thorsten.wav"
+GIT_INSTALL = "pip install --no-deps git+https://github.com/resemble-ai/chatterbox.git"
 ALLOWED_ORIGINS = {
     "http://127.0.0.1:47291",
     "http://localhost:47291",
@@ -48,13 +54,24 @@ def language_id(lang: str | None) -> str:
     return code or "de"
 
 
+def _require_v3_api(cls) -> None:
+    params = inspect.signature(cls.from_pretrained).parameters
+    if "t3_model" not in params:
+        raise RuntimeError(
+            "PyPI chatterbox-tts==0.1.7 is multilingual V2 and does not accept t3_model. "
+            f"After CUDA torch is installed, run: {GIT_INSTALL}"
+        )
+
+
 def get_model():
     global _MODEL
     with _MODEL_LOCK:
         if _MODEL is None:
             from chatterbox.mtl_tts import ChatterboxMultilingualTTS
 
+            _require_v3_api(ChatterboxMultilingualTTS)
             print(f"Loading Chatterbox Multilingual V3 on {_DEVICE}…", flush=True)
+            # Git HEAD only. PyPI 0.1.7 from_pretrained(device=...) loads t3_mtl23ls_v2.
             _MODEL = ChatterboxMultilingualTTS.from_pretrained(
                 device=_DEVICE,
                 t3_model="v3",
@@ -81,11 +98,16 @@ def wav_bytes(tensor, sample_rate: int) -> bytes:
 
 
 def generate_wav(text: str, lang: str) -> bytes:
+    if not REF_DE.is_file():
+        raise FileNotFoundError(
+            f"German reference clip missing: {REF_DE}. "
+            "Put Thorsten (~9.5s) at tts/ref_de_thorsten.wav. Do not use an English prompt."
+        )
     model = get_model()
-    # Do not pass audio_prompt_path: an English reference would stamp an English accent on German.
     wav = model.generate(
         text,
         language_id=language_id(lang),
+        audio_prompt_path=str(REF_DE),
         exaggeration=0.5,
         cfg_weight=0.5,
     )
