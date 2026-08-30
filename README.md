@@ -21,7 +21,9 @@ npm run build     # production build
 npm run generate:sample
 ```
 
-No backend and no API keys. Narration uses the browser **Web Speech API** (`speechSynthesis`). German **de-DE** neural/natural system voices are preferred when the OS provides them.
+No cloud API keys. On boot the app probes a local neural TTS helper (`127.0.0.1:8765`, Chatterbox Multilingual V3). If that server is down, narration falls back to the browser **Web Speech API** (`speechSynthesis`). German **de-DE** first.
+
+See [tts/README.md](tts/README.md) for the optional Python server on a local RTX GPU. Install Chatterbox from **git HEAD** (`t3_model="v3"`). PyPI `chatterbox-tts==0.1.7` is multilingual V2 only.
 
 ## How to use
 
@@ -61,4 +63,9 @@ Click a paragraph or chapter to start from there.
 
 ## Voice architecture
 
-`NarrationEngine` talks to a `NarrationProvider`. v1 ships `WebSpeechProvider` (system TTS). An API provider can be added later without changing highlighting, chapter jump, or position persistence.
+`NarrationEngine` talks to a `NarrationProvider`. Two implementations:
+
+- `HttpAudioProvider` (`neural-http`) — `POST /tts/speak`, plays `audio/wav` or `audio/mpeg` with `HTMLAudioElement` (pause/resume on the audio element).
+- `WebSpeechProvider` (`web-speech`) — system TTS fallback when `GET /tts/health` fails.
+
+Highlighting, chapter jump, chunking, and IndexedDB position persistence stay provider-neutral.

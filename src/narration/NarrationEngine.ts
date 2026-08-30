@@ -223,7 +223,7 @@ export function createNarrationEngine(
     },
 
     resume() {
-      if (status === 'paused' && spoken && typeof speechSynthesis !== 'undefined' && speechSynthesis.paused) {
+      if (status === 'paused' && spoken) {
         spoken.resume()
         startedAt = Date.now() - pausedElapsed * 1000
         status = 'playing'

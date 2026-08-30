@@ -25,3 +25,12 @@ dist-ssr
 
 agent-tools
 public/SAIOS1.docx
+
+# Local TTS artifacts — never commit manuscripts, wavs, or model caches
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+tts/*.wav
+!tts/ref_de_thorsten.wav
+tts/*.docx

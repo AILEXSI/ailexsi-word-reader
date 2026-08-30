@@ -100,4 +100,93 @@ describe('NarrationEngine', () => {
     expect(engine.getSnapshot().status).toBe('paused')
     engine.destroy()
   })
+
+  it('resume() calls spoken.resume() without consulting speechSynthesis', async () => {
+    const pause = vi.fn()
+    const resume = vi.fn()
+    const spokenTexts: string[] = []
+    const provider: NarrationProvider = {
+      id: 'mock',
+      label: 'Mock',
+      async listVoices() {
+        return []
+      },
+      speak(chunk, _o, handlers) {
+        spokenTexts.push(chunk.text)
+        queueMicrotask(() => handlers.onStart?.())
+        return { cancel() {}, pause, resume }
+      },
+    }
+
+    const speechSynthesisStub = { paused: false, resume: vi.fn(), pause: vi.fn(), cancel: vi.fn() }
+    vi.stubGlobal('speechSynthesis', speechSynthesisStub)
+
+    const snapshots: string[] = []
+    const engine = createNarrationEngine(provider, {
+      onSnapshot: (s) => snapshots.push(s.status),
+      onPosition: () => {},
+      onError: () => {},
+      onEnded: () => {},
+    })
+    engine.load(manuscript())
+    engine.play()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(engine.getSnapshot().status).toBe('playing')
+    expect(spokenTexts).toHaveLength(1)
+
+    engine.pause()
+    expect(pause).toHaveBeenCalledTimes(1)
+    expect(engine.getSnapshot().status).toBe('paused')
+
+    engine.resume()
+    expect(resume).toHaveBeenCalledTimes(1)
+    expect(speechSynthesisStub.resume).not.toHaveBeenCalled()
+    expect(spokenTexts).toHaveLength(1)
+    expect(engine.getSnapshot().status).toBe('playing')
+
+    engine.destroy()
+    vi.unstubAllGlobals()
+  })
+
+  it('resume() restarts via playFrom when no live utterance exists', async () => {
+    let speakCount = 0
+    const provider: NarrationProvider = {
+      id: 'mock',
+      label: 'Mock',
+      async listVoices() {
+        return []
+      },
+      speak(_chunk, _o, handlers) {
+        speakCount += 1
+        queueMicrotask(() =>
+          handlers.onError?.({
+            message: 'fail',
+            chunkId: _chunk.id,
+            blockIndex: _chunk.blockIndex,
+            retryable: true,
+          }),
+        )
+        return { cancel() {}, pause() {}, resume() {} }
+      },
+    }
+    const engine = createNarrationEngine(provider, {
+      onSnapshot: () => {},
+      onPosition: () => {},
+      onError: () => {},
+      onEnded: () => {},
+    })
+    engine.load(manuscript())
+    engine.play()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(engine.getSnapshot().status).toBe('paused')
+    expect(speakCount).toBe(1)
+
+    engine.resume()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(speakCount).toBe(2)
+    engine.destroy()
+  })
 })
